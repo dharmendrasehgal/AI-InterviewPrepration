@@ -1,0 +1,99 @@
+name: Code Quality & Security
+
+on:
+  push:
+    branches: [ master, main, develop ]
+    paths:
+      - 'outputs/implementation/**'
+      - '.github/workflows/code-quality.yml'
+  pull_request:
+    branches: [ master, main, develop ]
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  security-analysis:
+    name: Security & Code Quality Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript, typescript
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install backend dependencies
+        working-directory: outputs/implementation/backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: outputs/implementation/frontend
+        run: npm ci
+
+      - name: Build backend
+        working-directory: outputs/implementation/backend
+        run: npm run build
+
+      - name: Build frontend
+        working-directory: outputs/implementation/frontend
+        run: npm run build
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  dependency-check:
+    name: Dependency Security Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Check backend dependencies
+        working-directory: outputs/implementation/backend
+        run: |
+          npm ci
+          npm audit --audit-level=moderate || true
+
+      - name: Check frontend dependencies
+        working-directory: outputs/implementation/frontend
+        run: |
+          npm ci
+          npm audit --audit-level=moderate || true
+
+  eslint:
+    name: ESLint Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install frontend dependencies
+        working-directory: outputs/implementation/frontend
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: outputs/implementation/frontend
+        run: npm run lint
