@@ -1,2 +1,0 @@
-name: Build Docker Image
-run: docker build -t my-app .
