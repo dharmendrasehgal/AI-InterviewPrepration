@@ -1,0 +1,4 @@
+on:
+  workflow_dispatch: 
+  - name: Install Dependencies
+    run: npm install
