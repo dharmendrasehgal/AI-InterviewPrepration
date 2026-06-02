@@ -100,3 +100,57 @@ Auto-deploys to staging on `develop` branch push.
 7. Send Slack notification
 
 ### Secrets Required
+
+---
+
+## 4. Deploy to Production Workflow
+
+**File**: `.github/workflows/deploy-production.yml`
+
+### Purpose
+Manual production deployment with approval gates.
+
+### Jobs
+
+1. **Approval Gate** - Manual approval required
+2. **Deploy** - ECS updates + migrations
+3. **Smoke Tests** - Post-deployment validation
+
+---
+
+## 5. Code Quality & Security Workflow
+
+**File**: `.github/workflows/code-quality.yml`
+
+### Purpose
+Security scanning, dependency audit, and code quality checks.
+
+### Jobs
+
+1. **Security Analysis** - GitHub CodeQL scanning
+2. **Dependency Check** - NPM audit
+3. **ESLint Analysis** - Code quality
+
+---
+
+## 6. Release Management Workflow
+
+**File**: `.github/workflows/release.yml`
+
+### Purpose
+Versioned releases and production deployments.
+
+### Triggers
+- Git tag `v*` (e.g., `v1.0.0`)
+- Manual workflow dispatch
+
+### Release Example
+```bash
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+
+# Automatically:
+# 1. Creates GitHub Release
+# 2. Builds Docker v1.0.0 images
+# 3. Deploys to production (after approval)
+# 4. Sends Slack notification
