@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker info *)",
+      "Bash(PGPASSWORD=dev_password_change_me psql -h localhost -U app -d interviewprep -c \"\\\\dt\")",
+      "Bash(docker exec *)",
+      "Bash(curl -s -X POST http://localhost:3001/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"devtest@example.com\",\"password\":\"TestPass1\"}')",
+      "Bash(pkill -f \"tsx server.ts\")",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(node -e \"const {chromium} = require\\('playwright'\\); chromium.launch\\({channel:'chrome',headless:true}\\).then\\(b=>b.close\\(\\)\\).then\\(\\(\\)=>console.log\\('OK'\\)\\).catch\\(e=>console.error\\(e.message\\)\\)\")",
+      "Bash(cd /tmp)",
+      "Bash(npm init *)",
+      "Bash(node phase1-test.mjs)",
+      "Bash(curl -s -X POST http://localhost:3001/api/v1/auth/register -H 'Content-Type: application/json' -d '{\"email\":\"livetest@example.com\",\"password\":\"TestPass1\",\"full_name\":\"Live Tester\",\"role\":\"candidate\"}')",
+      "Bash(curl -s -X POST http://localhost:3001/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"livetest@example.com\",\"password\":\"TestPass1\"}')",
+      "Bash(taskkill //F //IM node.exe //FI \"WINDOWTITLE eq phase1*\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\dharmendra.sehgal\\AppData\\Local\\Temp"
+    ]
+  }
+}

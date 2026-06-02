@@ -1,0 +1,164 @@
+# Local development environment — mirrors production topology without GPU
+# First-time setup:
+#   1. cp .env.example .env   (fill in CLAUDE_API_KEY)
+#   2. docker compose run --rm keygen   (generates jwt_private_key.pem)
+#   3. cd ../backend && npm install && cd ../devops
+#   4. docker compose up -d
+
+services:
+
+  # ─── One-shot JWT key generator (run once: docker compose run --rm keygen) ──
+  keygen:
+    image: alpine:3
+    command: >
+      sh -c "
+        apk add --no-cache openssl &&
+        if [ -f /keys/jwt_private_key.pem ]; then
+          echo 'jwt_private_key.pem already exists — skipping.';
+        else
+          openssl genrsa -out /keys/jwt_private_key.pem 2048 &&
+          chmod 600 /keys/jwt_private_key.pem &&
+          echo 'JWT RSA private key generated: jwt_private_key.pem';
+        fi
+      "
+    volumes:
+      - ./:/keys
+    profiles:
+      - setup
+
+  # ─── API (Fastify) ─────────────────────────────────────────────
+  api:
+    build:
+      context: ../backend
+      dockerfile: ../devops/Dockerfile
+      target: runner
+    ports:
+      - '3001:3001'
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://app:${POSTGRES_PASSWORD:-dev_password_change_me}@postgres:5432/interviewprep
+      REDIS_URL: redis://redis:6379
+      JWT_PRIVATE_KEY_FILE: /run/secrets/jwt_private_key
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_refresh_secret_change_in_prod}
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      WHISPER_ENDPOINT: http://whisper-mock:8080
+      S3_ENDPOINT: http://localstack:4566
+      S3_RECORDINGS_BUCKET: interview-prep-recordings-local
+      S3_ASSETS_BUCKET: interview-prep-assets-local
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-SG.dev_mock}
+      LOG_LEVEL: debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./jwt_private_key.pem:/run/secrets/jwt_private_key:ro
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3001/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── Worker (BullMQ) ───────────────────────────────────────────
+  worker:
+    build:
+      context: ../backend
+      dockerfile: ../devops/Dockerfile
+      target: runner
+    command: node dist/worker.js
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://app:${POSTGRES_PASSWORD:-dev_password_change_me}@postgres:5432/interviewprep
+      REDIS_URL: redis://redis:6379
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      WHISPER_ENDPOINT: http://whisper-mock:8080
+      S3_ENDPOINT: http://localstack:4566
+      S3_RECORDINGS_BUCKET: interview-prep-recordings-local
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+      LOG_LEVEL: debug
+    depends_on:
+      - api
+      - redis
+      - postgres
+    restart: unless-stopped
+
+  # ─── PostgreSQL ────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: interviewprep
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_password_change_me}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U app -d interviewprep']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ─── Redis ─────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # ─── LocalStack (S3 emulator) ──────────────────────────────────
+  localstack:
+    image: localstack/localstack:3
+    ports:
+      - '4566:4566'
+    environment:
+      SERVICES: s3
+      DEFAULT_REGION: us-east-1
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - ./localstack-init.sh:/etc/localstack/init/ready.d/init.sh:ro
+    restart: unless-stopped
+
+  # ─── Whisper Mock (STT stub for local dev) ─────────────────────
+  whisper-mock:
+    image: node:22-alpine
+    working_dir: /app
+    command: node whisper-mock.js
+    volumes:
+      - ./whisper-mock.js:/app/whisper-mock.js:ro
+    ports:
+      - '8080:8080'
+    restart: unless-stopped
+
+  # ─── Bull Board (Queue monitoring UI) ──────────────────────────
+  bull-board:
+    image: node:22-alpine
+    working_dir: /app
+    command: npx --yes @bull-board/cli --redis redis://redis:6379
+    ports:
+      - '3002:3000'
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  localstack_data:
