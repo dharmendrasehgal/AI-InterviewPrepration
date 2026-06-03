@@ -271,6 +271,166 @@ export const mockSessionsApi = {
     ),
 }
 
+// ─── Experts (Phase 2) ───────────────────────────────────────
+
+export type ExpertTrack = 'general_career' | 'software_engineering' | 'medical'
+
+export interface ExpertSummary {
+  expert_id: string
+  headline: string
+  industry: ExpertTrack
+  track: ExpertTrack
+  years_exp: number
+  rate_cents: number
+}
+
+export interface ExpertProfile extends ExpertSummary {
+  bio: string
+  status?: 'pending' | 'approved' | 'suspended'
+}
+
+export interface AvailabilitySlot {
+  slot_id: string
+  start_at: string
+  end_at: string
+  is_booked: boolean
+}
+
+export const expertsApi = {
+  list: (params?: { track?: ExpertTrack; industry?: ExpertTrack; max_rate_cents?: number; cursor?: string; page_size?: number }) =>
+    request<{ items: ExpertSummary[]; next_cursor: string | null; has_more: boolean }>(
+      `/experts?${new URLSearchParams(Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v != null)) as Record<string, string>)}`,
+    ),
+
+  get: (id: string) => request<ExpertProfile>(`/experts/${id}`),
+
+  getMe: () => request<ExpertProfile>('/experts/me'),
+
+  register: (dto: { headline: string; bio: string; industry: ExpertTrack; track: ExpertTrack; years_exp: number; rate_cents: number }) =>
+    request<{ expert_id: string; status: string }>('/experts', { method: 'POST', body: JSON.stringify(dto) }),
+
+  update: (id: string, dto: Partial<{ headline: string; bio: string; years_exp: number; rate_cents: number }>) =>
+    request<{ expert_id: string; updated: boolean }>(`/experts/${id}`, { method: 'PATCH', body: JSON.stringify(dto) }),
+
+  approve: (id: string) =>
+    request<{ expert_id: string; status: string }>(`/experts/${id}/approve`, { method: 'POST' }),
+
+  suspend: (id: string) =>
+    request<{ expert_id: string; status: string }>(`/experts/${id}/suspend`, { method: 'POST' }),
+
+  listPending: () =>
+    request<Array<{ expert_id: string; headline: string; industry: string; track: string; applied_at: string }>>('/experts/pending'),
+
+  listAvailability: (expertId: string, params?: { from?: string; to?: string; available_only?: boolean }) =>
+    request<AvailabilitySlot[]>(
+      `/experts/${expertId}/availability?${new URLSearchParams(Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v != null)) as Record<string, string>)}`,
+    ),
+
+  addSlot: (expertId: string, dto: { start_at: string; end_at: string }) =>
+    request<{ slot_id: string; start_at: string; end_at: string }>(
+      `/experts/${expertId}/availability`,
+      { method: 'POST', body: JSON.stringify(dto) },
+    ),
+
+  removeSlot: (expertId: string, slotId: string) =>
+    request<{ slot_id: string; deleted: boolean }>(`/experts/${expertId}/availability/${slotId}`, { method: 'DELETE' }),
+}
+
+// ─── Bookings (Phase 2) ───────────────────────────────────────
+
+export interface Booking {
+  booking_id: string
+  status: 'confirmed' | 'cancelled' | 'completed' | 'no_show'
+  expert_id: string
+  candidate_id: string
+  availability_id: string
+  start_at?: string
+  end_at?: string
+  created_at: string
+}
+
+export const bookingsApi = {
+  create: (dto: { expert_id: string; availability_id: string }) =>
+    request<Booking & { start_at: string; end_at: string }>('/bookings', { method: 'POST', body: JSON.stringify(dto) }),
+
+  list: () => request<Booking[]>('/bookings'),
+
+  get: (id: string) => request<Booking>(`/bookings/${id}`),
+
+  cancel: (id: string, dto?: { reason?: string }) =>
+    request<{ booking_id: string; status: string }>(`/bookings/${id}/cancel`, { method: 'POST', body: JSON.stringify(dto ?? {}) }),
+}
+
+// ─── Live Sessions (Phase 2) ──────────────────────────────────
+
+export interface LiveSession {
+  session_id: string
+  booking_id: string
+  status: 'pending' | 'in_progress' | 'completed' | 'failed'
+  consent_at: string | null
+  started_at: string | null
+  ended_at: string | null
+  has_recording: boolean
+}
+
+export const liveSessionsApi = {
+  get: (id: string) => request<LiveSession>(`/live-sessions/${id}`),
+
+  getIceConfig: () => request<{ iceServers: RTCIceServer[] }>('/live-sessions/ice-config'),
+
+  recordConsent: (id: string) =>
+    request<{ session_id: string; consent_at: string }>(`/live-sessions/${id}/consent`, { method: 'POST' }),
+
+  start: (id: string) =>
+    request<{ session_id: string; status: string; started_at: string }>(`/live-sessions/${id}/start`, { method: 'POST' }),
+
+  complete: (id: string, dto?: { duration_seconds?: number }) =>
+    request<{ session_id: string; status: string; ended_at: string }>(`/live-sessions/${id}/complete`, { method: 'POST', body: JSON.stringify(dto ?? {}) }),
+}
+
+// ─── Rubric (Phase 2) ────────────────────────────────────────
+
+export interface RubricEvaluation {
+  rubric_id: string
+  communication: number
+  technical_depth: number
+  structured_thinking: number
+  confidence: number
+  overall_score: number
+  feedback_text: string
+  notes?: string
+  submitted_at: string
+}
+
+export const rubricApi = {
+  submit: (expertSessionId: string, dto: { communication: number; technical_depth: number; structured_thinking: number; confidence: number; feedback_text: string; notes?: string }) =>
+    request<{ rubric_id: string; overall_score: number; submitted_at: string }>(
+      `/rubric/${expertSessionId}`,
+      { method: 'POST', body: JSON.stringify(dto) },
+    ),
+
+  get: (expertSessionId: string) => request<RubricEvaluation>(`/rubric/${expertSessionId}`),
+}
+
+// ─── Playbooks (Phase 2) ──────────────────────────────────────
+
+export interface PlaybookSummary {
+  playbook_id: string
+  track: ExpertTrack
+  title: string
+  version: number
+}
+
+export interface PlaybookDetail extends PlaybookSummary {
+  sections: Array<{ title: string; body: string; questions: string[] }>
+}
+
+export const playbooksApi = {
+  list: () => request<PlaybookSummary[]>('/playbooks'),
+
+  get: (track: ExpertTrack) => request<PlaybookDetail>(`/playbooks/${track}`),
+}
+
 // ─── Feedback Archive ─────────────────────────────────────────
 
 export interface FeedbackEntry {

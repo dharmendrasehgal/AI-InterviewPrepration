@@ -1,6 +1,23 @@
 import 'dotenv/config'
+import bcrypt from 'bcrypt'
+import crypto from 'node:crypto'
 import { db } from '@/db/connection'
-import { questions, questionAnswers } from '@/db/schema'
+import { users, questions, questionAnswers, experts, playbooks } from '@/db/schema'
+import { eq, sql } from 'drizzle-orm'
+
+function encryptField(value: string): string {
+  const keyHex = process.env.FIELD_ENCRYPTION_KEY ?? '0'.repeat(64)
+  const key = Buffer.from(keyHex, 'hex')
+  const iv = crypto.randomBytes(12)
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv)
+  const ciphertext = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()])
+  const authTag = cipher.getAuthTag()
+  return Buffer.concat([iv, authTag, ciphertext]).toString('base64')
+}
+
+function hashEmail(email: string): string {
+  return crypto.createHash('sha256').update(email.toLowerCase()).digest('hex')
+}
 
 type QuestionType = 'behavioral' | 'technical' | 'situational' | 'role_specific'
 type Level = 'entry' | 'mid' | 'senior' | 'executive'
@@ -1537,6 +1554,29 @@ const roleSpecific: SeedQuestion[] = [
 async function seed() {
   const allQuestions: SeedQuestion[] = [...behavioral, ...technical, ...situational, ...roleSpecific]
 
+  // ─── Admin user ────────────────────────────────────────────────
+  const ADMIN_EMAIL = 'admin@platform.com'
+  const ADMIN_PASSWORD = 'Admin@Dev2026'
+  const adminHash = hashEmail(ADMIN_EMAIL)
+  const existing = await db.select({ id: users.id }).from(users).where(eq(users.emailHash, adminHash)).limit(1)
+
+  if (existing.length === 0) {
+    const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 12)
+    await db.insert(users).values({
+      emailHash: adminHash,
+      emailEncrypted: encryptField(ADMIN_EMAIL),
+      fullNameEncrypted: encryptField('Platform Admin'),
+      role: 'admin',
+      passwordHash,
+      emailVerified: true,
+      status: 'active',
+    })
+    console.log(`Admin user created: ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`)
+  } else {
+    console.log('Admin user already exists — skipping')
+  }
+
+  // ─── Questions ─────────────────────────────────────────────────
   console.log(`Seeding ${allQuestions.length} questions...`)
 
   let inserted = 0
@@ -1566,6 +1606,107 @@ async function seed() {
   }
 
   console.log(`Done. Inserted ${inserted} questions with answers.`)
+
+  // ─── Expert users ───────────────────────────────────────────────
+  const expertSeedData = [
+    { email: 'alex.chen@experts.com', name: 'Alex Chen', headline: 'Senior SWE @ Google · 8 yrs', bio: 'I specialise in helping engineers land roles at top-tier tech companies. My sessions focus on system design, behavioural interviews, and coding walk-through technique. I have personally interviewed 200+ candidates at Google.', track: 'software_engineering' as const, industry: 'software_engineering' as const, yearsExp: 8, rateCents: 7500 },
+    { email: 'priya.sharma@experts.com', name: 'Dr. Priya Sharma', headline: 'Chief Resident, Internal Medicine · 6 yrs', bio: 'I help medical school and residency applicants craft compelling stories and handle MMI stations with confidence. Structured, evidence-based coaching with real interview scenarios.', track: 'medical' as const, industry: 'medical' as const, yearsExp: 6, rateCents: 6000 },
+    { email: 'marcus.johnson@experts.com', name: 'Marcus Johnson', headline: 'Career Coach, ex-McKinsey · 12 yrs', bio: 'Former McKinsey consultant turned full-time career coach. I help professionals at all levels nail behavioural interviews, case studies, and salary negotiations. 89 sessions completed on the platform.', track: 'general_career' as const, industry: 'general_career' as const, yearsExp: 12, rateCents: 9000 },
+  ]
+
+  for (const e of expertSeedData) {
+    const emailHash = hashEmail(e.email)
+    const existing = await db.select({ id: users.id }).from(users).where(eq(users.emailHash, emailHash)).limit(1)
+
+    let userId: string
+    if (existing.length === 0) {
+      const passwordHash = await bcrypt.hash('Expert@Dev2026', 12)
+      const [u] = await db.insert(users).values({
+        emailHash,
+        emailEncrypted: encryptField(e.email),
+        fullNameEncrypted: encryptField(e.name),
+        role: 'expert',
+        passwordHash,
+        emailVerified: true,
+        status: 'active',
+      }).returning({ id: users.id })
+      userId = u.id
+      console.log(`Expert user created: ${e.email}`)
+    } else {
+      userId = existing[0].id
+    }
+
+    const existingExpert = await db.select({ id: experts.id }).from(experts).where(eq(experts.userId, userId)).limit(1)
+    if (existingExpert.length === 0) {
+      await db.insert(experts).values({
+        userId,
+        bioEncrypted: encryptField(e.bio),
+        headline: e.headline,
+        industry: e.industry,
+        track: e.track,
+        yearsExp: e.yearsExp,
+        rateCents: e.rateCents,
+        status: 'approved',
+        approvedAt: new Date(),
+      })
+      console.log(`Expert profile created: ${e.headline}`)
+    }
+  }
+
+  // ─── Playbooks ──────────────────────────────────────────────────
+  const playbookData = [
+    {
+      track: 'general_career' as const,
+      title: 'General Career Interview Playbook',
+      content: {
+        sections: [
+          { title: 'The STAR Method', body: 'The STAR method (Situation, Task, Action, Result) is the gold standard for behavioural interviews. Use it to structure every example-based answer.\n\n**Situation:** Set the scene briefly (1-2 sentences). Where were you? What was the context?\n\n**Task:** What was your specific responsibility or challenge?\n\n**Action:** What did YOU do? Focus on your individual contribution, even in team settings. Use "I" not "we".\n\n**Result:** What was the measurable outcome? Quantify wherever possible (%, $, time saved, users impacted).', questions: ['Tell me about a time you solved a difficult problem.', 'Describe a situation where you showed leadership.', 'Give an example of adapting to a major change.'] },
+          { title: 'Salary Negotiation', body: 'Never accept the first offer. Research your market rate on Glassdoor, Levels.fyi, or LinkedIn Salary before your interview. When asked "What are your salary expectations?", respond with a range anchored above your target. Always negotiate non-salary items (equity, bonus, PTO, remote) if base is fixed.', questions: ['What are your salary expectations?', 'Do you have any competing offers?', 'What is the most important factor in your decision?'] },
+          { title: 'Questions to Ask', body: 'Asking strong closing questions signals engagement and helps you evaluate the role. Avoid anything answerable by the website. Strong questions: "What does success look like in the first 90 days?" / "What are the biggest challenges the team is facing?" / "How do you measure performance for this role?"', questions: ['What does success look like in the first 90 days?', 'What is the biggest challenge facing the team right now?', 'How does this role interact with other teams?'] },
+        ],
+      },
+      version: 1,
+      published: true,
+    },
+    {
+      track: 'software_engineering' as const,
+      title: 'Software Engineering Interview Playbook',
+      content: {
+        sections: [
+          { title: 'System Design Framework', body: 'Use RESHADED to structure every system design answer:\n\n**R** — Requirements (functional + non-functional)\n**E** — Estimation (scale, QPS, storage)\n**S** — Storage (database choice, schema)\n**H** — High-level design (components + data flow)\n**A** — APIs (key endpoints, contracts)\n**D** — Deep dives (bottlenecks, tradeoffs)\n**E** — Evaluation (monitoring, failure modes)\n**D** — Discussion (scale-out, future improvements)\n\nSpend at least 5 minutes on requirements before drawing anything.', questions: ['Design a URL shortener like bit.ly.', 'How would you design Twitter?', 'Design a notification service at scale.'] },
+          { title: 'Coding Interview Patterns', body: 'Master these 14 patterns to solve 90% of LeetCode-style questions:\n\n1. Two Pointers — sorted arrays, palindromes\n2. Sliding Window — subarrays, substrings\n3. Binary Search — sorted data, answer search space\n4. BFS/DFS — graphs, trees, grids\n5. Dynamic Programming — overlapping subproblems\n6. Heap/Priority Queue — top-k, streaming data\n7. Stack — matching brackets, next greater element\n8. Prefix Sum — range queries\n9. Trie — prefix matching, autocomplete\n10. Union-Find — connected components\n11. Backtracking — permutations, combinations\n12. Greedy — interval scheduling, local optima\n13. Bit Manipulation — XOR tricks, flag operations\n14. Topological Sort — dependency ordering', questions: ['Find the longest substring without repeating characters.', 'Implement an LRU cache.', 'Design a data structure supporting insert, delete, and getRandom in O(1).'] },
+          { title: 'Behavioural for Engineers', body: 'Technical competence gets you through the coding round. Behavioural rounds test leadership, ownership, and communication. Prepare 5 strong STAR stories covering: (1) technical deep dive, (2) cross-functional conflict, (3) project failure and recovery, (4) influence without authority, (5) learning a new technology quickly.', questions: ['Tell me about the most complex system you have built.', 'Describe a time you had a major technical disagreement with your team.', 'Give an example of learning a new technology under time pressure.'] },
+        ],
+      },
+      version: 1,
+      published: true,
+    },
+    {
+      track: 'medical' as const,
+      title: 'Medical School & Residency Interview Playbook',
+      content: {
+        sections: [
+          { title: 'MMI Station Types', body: 'Multiple Mini Interviews (MMIs) assess non-cognitive attributes through short, structured rotations. Know these station types:\n\n**Ethical Scenarios:** Present both sides before concluding. Use the 4-principle framework (Autonomy, Beneficence, Non-maleficence, Justice).\n\n**Role Play:** Stay in character, show empathy. Open with open-ended questions.\n\n**Policy Questions:** Show awareness of health system issues (access, cost, quality).\n\n**Personal Statements:** Know your application inside out. Be ready to defend every claim.\n\n**Teamwork/Leadership:** Use structured STAR examples from any context (sport, volunteering, research).', questions: ['A patient refuses a blood transfusion on religious grounds. What do you do?', 'You witness a colleague falsifying patient records. How do you respond?', 'Should terminally ill patients have the right to assisted suicide?'] },
+          { title: 'Motivations & Self-Reflection', body: 'Interviewers want to see authentic self-awareness, not scripted answers. For "Why medicine?", connect your answer to a specific moment or patient experience, your academic interest, and your long-term vision. Avoid clichés ("I want to help people"). Show depth: what specifically drew you to this specialty? What have you done to confirm this interest?\n\nFor "Tell me about yourself", structure as: academic/clinical background → a defining experience → what you bring to this program.', questions: ['Why medicine?', 'Why this specialty?', 'Tell me about a clinical experience that changed your perspective.'] },
+          { title: 'Residency-Specific Prep', body: 'For residency interviews, research the program deeply: curriculum structure, fellowship match rates, resident wellness initiatives, call schedule, research opportunities. Have a clear answer to "Why our program?" that references specifics from their website and conversations with current residents.\n\nPrepare your step scores story if needed, and frame any red flags proactively but briefly. Emphasise growth and self-correction.', questions: ['Why do you want to train at our institution?', 'Where do you see yourself in 10 years?', 'What is your greatest weakness as a physician-in-training?'] },
+        ],
+      },
+      version: 1,
+      published: true,
+    },
+  ]
+
+  for (const p of playbookData) {
+    const existing = await db.select({ id: playbooks.id }).from(playbooks).where(eq(playbooks.track, p.track)).limit(1)
+    if (existing.length === 0) {
+      await db.insert(playbooks).values(p)
+      console.log(`Playbook created: ${p.title}`)
+    } else {
+      console.log(`Playbook already exists: ${p.track}`)
+    }
+  }
+
+  console.log('Seed complete.')
   process.exit(0)
 }
 

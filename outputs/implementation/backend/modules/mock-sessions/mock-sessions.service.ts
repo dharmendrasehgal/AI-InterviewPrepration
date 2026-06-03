@@ -41,21 +41,35 @@ export const mockSessionsService = {
   async create(userId: string, params: { question_count: number; track: string; level: string }) {
     const count = Math.min(Math.max(params.question_count, 1), 10)
 
-    const [session] = await db
-      .insert(mockSessions)
-      .values({
-        userId,
-        questionCount: count,
-        track: params.track,
-        level: params.level,
-        status: 'awaiting_consent',
-      })
-      .returning({ id: mockSessions.id, status: mockSessions.status, questionCount: mockSessions.questionCount })
+    try {
+      const [session] = await db
+        .insert(mockSessions)
+        .values({
+          userId,
+          questionCount: count,
+          track: params.track,
+          level: params.level,
+          status: 'awaiting_consent',
+        })
+        .returning({ id: mockSessions.id, status: mockSessions.status, questionCount: mockSessions.questionCount })
 
-    return {
-      session_id: session.id,
-      status: session.status,
-      question_count: session.questionCount,
+      if (!session) {
+        throw Object.assign(new Error('Session could not be created'), { code: 'INTERNAL_ERROR', status: 500 })
+      }
+
+      return {
+        session_id: session.id,
+        status: session.status,
+        question_count: session.questionCount,
+      }
+    } catch (err) {
+      if ((err as { status?: number }).status) throw err
+      // PostgreSQL FK violation — userId not found in users table
+      if ((err as { code?: string }).code === '23503') {
+        throw Object.assign(new Error('User account not found'), { code: 'UNAUTHORIZED', status: 401 })
+      }
+      logger.error({ err, userId }, 'Failed to create mock session')
+      throw Object.assign(new Error('Failed to create session'), { code: 'INTERNAL_ERROR', status: 503 })
     }
   },
 

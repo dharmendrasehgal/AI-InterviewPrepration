@@ -7,16 +7,35 @@ import { authApi } from '@/lib/api/client'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-const NAV_LINKS = [
+const CANDIDATE_LINKS = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/questions', label: 'Questions' },
-  { href: '/mock-session', label: 'Start Practice' },
+  { href: '/mock-session', label: 'AI Practice' },
+  { href: '/experts', label: 'Experts' },
+  { href: '/playbooks', label: 'Playbooks' },
+]
+
+const EXPERT_LINKS = [
+  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/questions', label: 'Questions' },
+  { href: '/account/bookings', label: 'My Sessions' },
+]
+
+const ADMIN_LINKS = [
+  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/questions', label: 'Questions' },
+  { href: '/admin/experts', label: 'Expert Approvals' },
 ]
 
 export function Nav() {
   const pathname = usePathname()
   const router = useRouter()
-  const { accessToken, logout } = useAuthStore()
+  const { accessToken, user, logout } = useAuthStore()
+
+  const navLinks =
+    user?.role === 'admin' ? ADMIN_LINKS :
+    user?.role === 'expert' ? EXPERT_LINKS :
+    CANDIDATE_LINKS
 
   async function handleLogout() {
     try {
@@ -39,7 +58,7 @@ export function Nav() {
         {/* Nav links */}
         {accessToken && (
           <nav className="flex flex-1 items-center gap-1" aria-label="Main navigation">
-            {NAV_LINKS.map(({ href, label }) => (
+            {navLinks.map(({ href, label }) => (
               <Link
                 key={href}
                 href={href}
@@ -59,9 +78,21 @@ export function Nav() {
         {/* Right side */}
         <div className="ml-auto flex items-center gap-2">
           {accessToken ? (
-            <Button variant="outline" size="sm" onClick={handleLogout}>
-              Log out
-            </Button>
+            <div className="flex items-center gap-2">
+              {user?.role !== 'admin' && (
+                <Link href="/account/bookings">
+                  <Button variant="ghost" size="sm">My Bookings</Button>
+                </Link>
+              )}
+              {user?.role === 'candidate' && (
+                <Link href="/experts/apply">
+                  <Button variant="ghost" size="sm">Become Expert</Button>
+                </Link>
+              )}
+              <Button variant="outline" size="sm" onClick={handleLogout}>
+                Log out
+              </Button>
+            </div>
           ) : (
             <>
               <Link href="/login">

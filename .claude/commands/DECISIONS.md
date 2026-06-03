@@ -178,9 +178,26 @@ Content: the ISO timestamp. The orchestrating agent checks for this before assum
 
 ---
 
+## Phase 2 Decisions
+
+| ID | Decision |
+|----|----------|
+| ADR-WS-001 | WebRTC signaling uses `@fastify/websocket` integrated into the existing Fastify server (Option A). Route: `GET /api/v1/signaling/:sessionId`. Auth via `?token=<access_token>` query param on upgrade. Max 2 sockets per room (candidate + expert). Relay-only: server broadcasts raw messages between peers, no SDP/ICE interpretation. Upgrade trigger to standalone microservice: concurrent session count > 500 or p95 signaling latency > 150ms. |
+| ADR-ROLE-001 | Expert registration uses `requireAuth` (not `requireCandidate`). Any authenticated user may apply. Service layer rejects duplicates. Admin approval transitions `experts.status → 'approved'` AND `users.role → 'expert'` in a DB transaction. |
+| ADR-CRYPTO-001 | `encryptField` / `decryptField` are exported from `lib/crypto.ts`. Phase 2 modules import from there. `auth.service.ts` retains its local copy for backward compatibility — will be consolidated in a future refactor. |
+| ADR-BOOKING-001 | Booking creation uses `db.transaction()` with `.for('update')` row-level lock on `expert_availability`. Application-level overlap check runs before insert as an early guard; DB EXCLUDE constraint is the definitive enforcer. |
+| ADR-MOCK-001 | Mock session `track` field maps to question `type` values: `behavioral`, `technical`, `situational`, `role_specific`. The frontend mock-session setup page must use these exact values — NOT industry labels like `general_career`. This ensures `getNextQuestion()` can filter `questions.type = session.track`. |
+| ADR-ADMIN-001 | Admin users cannot self-register via `/api/v1/auth/register` (RegisterSchema only allows `candidate` or `expert`). Admin accounts are created exclusively by the `npm run db:seed` script. Dev credentials: `admin@platform.com` / `Admin@Dev2026`. Experts: `alex.chen@experts.com`, `priya.sharma@experts.com`, `marcus.johnson@experts.com` — all password `Expert@Dev2026`. |
+| ADR-ADMIN-002 | Admin question management: `POST/PATCH/DELETE /api/v1/questions` are admin-only routes (guarded by `requireAdmin`). Candidates/experts only have `GET` access. Admin can set `status: 'draft'` to hide questions without deleting them. |
+| ADR-EXPERT-001 | Expert profile creation UI lives at `/experts/apply`. The nav shows "Become Expert" link for `candidate` role users. Users registered with `role: 'expert'` land on the Expert Dashboard which shows "Complete Application" card linking to `/experts/apply`. |
+| ADR-NAV-001 | Navigation is role-specific: candidates get AI Practice + Experts + Playbooks links; experts get My Sessions; admins get Expert Approvals. "My Bookings" in the right-nav is hidden for admin role. Admin has no booking use-case. |
+| ADR-SEED-001 | Seed script (`scripts/seed.ts`) is idempotent — safe to re-run. It creates: (1) admin user, (2) 3 approved expert users, (3) 3 published playbooks, (4) 210 questions. Running it again skips already-created records. |
+
+---
+
 ## Open Questions (do not resolve unilaterally)
 
 - Monetization model (free vs. premium tiers) — not yet defined
 - Email provider (SendGrid vs. SES vs. Resend) — `emailService` is a stub
-- WebRTC signaling for live sessions — deferred to Phase 2
-- Admin dashboard — deferred to Phase 2
+- Admin dashboard — expanded in Phase 2 (approval queue live; full analytics in Phase 3)
+- TURN server provider — `TURN_SERVER_URL` env var configured per deployment; no vendor locked in

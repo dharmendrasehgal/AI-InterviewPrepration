@@ -1,6 +1,6 @@
 {
   "name": "interview-prep-api",
-  "version": "1.0.0",
+  "version": "1.1.0-alpha.1",
   "private": true,
   "scripts": {
     "build": "tsup server.ts worker.ts --format cjs --out-dir dist --no-splitting --sourcemap",
@@ -26,9 +26,9 @@
     "bcrypt": "^6.0.0",
     "bullmq": "^5.77.4",
     "dotenv": "^17.4.2",
+    "@fastify/websocket": "^11.0.0",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.8.5",
-    "ioredis": "^5.11.0",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.21.0",
     "pino": "^9.5.0",

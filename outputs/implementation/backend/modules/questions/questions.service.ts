@@ -212,4 +212,62 @@ export const questionsService = {
       bookmarked: true,
     }))
   },
+
+  async adminCreate(dto: {
+    text: string; type: string; level: string; industry?: string
+    difficulty?: number; tags?: string[]; framework?: string
+    answer?: string; keywords?: string[]
+  }) {
+    const [row] = await db
+      .insert(questions)
+      .values({
+        text: dto.text,
+        type: dto.type as never,
+        level: dto.level as never,
+        industry: dto.industry ?? 'general',
+        difficulty: dto.difficulty ?? 3,
+        tags: dto.tags ?? [],
+        framework: dto.framework ?? null,
+        status: 'published',
+      })
+      .returning()
+
+    if (dto.answer) {
+      await db.insert(questionAnswers).values({
+        questionId: row.id,
+        answerText: dto.answer,
+        keywords: dto.keywords ?? [],
+        isPrimary: true,
+      })
+    }
+
+    return { question_id: row.id, text: row.text, status: row.status }
+  },
+
+  async adminUpdate(id: string, dto: Partial<{
+    text: string; type: string; level: string; industry: string
+    difficulty: number; tags: string[]; framework: string; status: string
+  }>) {
+    const [q] = await db.select({ id: questions.id }).from(questions).where(eq(questions.id, id)).limit(1)
+    if (!q) throw Object.assign(new Error('Question not found'), { code: 'NOT_FOUND', status: 404 })
+
+    const update: Record<string, unknown> = {}
+    if (dto.text !== undefined) update.text = dto.text
+    if (dto.type !== undefined) update.type = dto.type
+    if (dto.level !== undefined) update.level = dto.level
+    if (dto.industry !== undefined) update.industry = dto.industry
+    if (dto.difficulty !== undefined) update.difficulty = dto.difficulty
+    if (dto.tags !== undefined) update.tags = dto.tags
+    if (dto.framework !== undefined) update.framework = dto.framework
+    if (dto.status !== undefined) update.status = dto.status
+
+    const [updated] = await db.update(questions).set(update).where(eq(questions.id, id)).returning()
+    return { question_id: updated.id, text: updated.text, status: updated.status }
+  },
+
+  async adminDelete(id: string) {
+    const [q] = await db.select({ id: questions.id }).from(questions).where(eq(questions.id, id)).limit(1)
+    if (!q) throw Object.assign(new Error('Question not found'), { code: 'NOT_FOUND', status: 404 })
+    await db.delete(questions).where(eq(questions.id, id))
+  },
 }

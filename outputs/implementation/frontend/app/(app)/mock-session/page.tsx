@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export default function MockSessionSetupPage() {
   const router = useRouter()
-  const [track, setTrack] = useState('general_career')
+  const [track, setTrack] = useState('behavioral')
   const [level, setLevel] = useState('mid')
   const [questionCount, setQuestionCount] = useState(5)
   const [error, setError] = useState<string | null>(null)
@@ -64,9 +64,10 @@ export default function MockSessionSetupPage() {
                 onChange={(e) => setTrack(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <option value="general_career">General Career</option>
-                <option value="software_engineering">Software Engineering</option>
-                <option value="medical_residency">Medical / Residency</option>
+                <option value="behavioral">Behavioral</option>
+                <option value="technical">Technical</option>
+                <option value="situational">Situational</option>
+                <option value="role_specific">Role-Specific</option>
               </select>
             </div>
 

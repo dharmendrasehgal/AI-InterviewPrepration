@@ -24,7 +24,7 @@ async function migrate() {
 
     const migrationsDir = join(__dirname, 'migrations')
     const files = readdirSync(migrationsDir)
-      .filter((f) => f.endsWith('.sql'))
+      .filter((f) => f.endsWith('.sql') && !f.endsWith('.down.sql'))
       .sort()
 
     for (const file of files) {

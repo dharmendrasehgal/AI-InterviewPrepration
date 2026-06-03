@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, requireAdmin } from '@/lib/auth-middleware'
 import { verifyAccessToken } from '@/modules/auth/auth.service'
 import { questionsService } from './questions.service'
 
@@ -87,6 +87,42 @@ export async function questionsRoutes(app: FastifyInstance) {
   app.delete('/:id/bookmark', { preHandler: requireAuth }, async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params)
     await questionsService.unbookmark(request.user.userId, id)
+    return reply.status(204).send()
+  })
+
+  // ─── Admin question management ─────────────────────────────────
+
+  const AdminQuestionSchema = z.object({
+    text: z.string().min(10).max(1000),
+    type: z.enum(['behavioral', 'technical', 'situational', 'role_specific']),
+    level: z.enum(['entry', 'mid', 'senior', 'executive']),
+    industry: z.string().max(100).default('general'),
+    difficulty: z.number().int().min(1).max(5).default(3),
+    tags: z.array(z.string()).default([]),
+    framework: z.string().optional(),
+    answer: z.string().min(10).optional(),
+    keywords: z.array(z.string()).default([]),
+  })
+
+  // POST /questions — admin creates
+  app.post('/', { preHandler: requireAdmin }, async (request, reply) => {
+    const dto = AdminQuestionSchema.parse(request.body)
+    const result = await questionsService.adminCreate(dto)
+    return reply.status(201).send({ data: result })
+  })
+
+  // PATCH /questions/:id — admin updates
+  app.patch('/:id', { preHandler: requireAdmin }, async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params)
+    const dto = AdminQuestionSchema.partial().parse(request.body)
+    const result = await questionsService.adminUpdate(id, dto)
+    return reply.send({ data: result })
+  })
+
+  // DELETE /questions/:id — admin deletes
+  app.delete('/:id', { preHandler: requireAdmin }, async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params)
+    await questionsService.adminDelete(id)
     return reply.status(204).send()
   })
 }

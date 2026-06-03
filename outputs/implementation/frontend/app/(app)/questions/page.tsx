@@ -24,15 +24,14 @@ function useDebounce<T>(value: T, delay: number): T {
 
 function QuestionCard({ question }: { question: Question }) {
   const [expanded, setExpanded] = useState(false)
-  const queryClient = useQueryClient()
+  const [isBookmarked, setIsBookmarked] = useState(question.bookmarked)
 
   const bookmarkMutation = useMutation({
-    mutationFn: question.bookmarked
+    mutationFn: isBookmarked
       ? () => questionsApi.unbookmark(question.id)
       : () => questionsApi.bookmark(question.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['questions'] })
-    },
+    onMutate: () => setIsBookmarked((v) => !v),
+    onError: () => setIsBookmarked((v) => !v),
   })
 
   return (
@@ -52,10 +51,10 @@ function QuestionCard({ question }: { question: Question }) {
           <button
             onClick={() => bookmarkMutation.mutate()}
             disabled={bookmarkMutation.isPending}
-            aria-label={question.bookmarked ? 'Remove bookmark' : 'Bookmark question'}
+            aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark question'}
             className="mt-0.5 shrink-0 rounded p-1 text-muted-foreground hover:text-foreground disabled:opacity-50"
           >
-            {question.bookmarked ? (
+            {isBookmarked ? (
               <BookmarkCheck className="h-4 w-4 text-primary" />
             ) : (
               <Bookmark className="h-4 w-4" />

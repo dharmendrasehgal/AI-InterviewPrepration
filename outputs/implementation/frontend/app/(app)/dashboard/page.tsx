@@ -161,61 +161,142 @@ function ExpertDashboard() {
             Conduct live mock interviews and help candidates prepare.
           </p>
         </div>
+        <Link href="/experts/me/availability">
+          <Button>Manage Availability</Button>
+        </Link>
       </div>
 
-      {/* Quick actions */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Question Bank</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">My Profile</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Browse and filter the full question library to prepare for sessions.
+              Update your expert profile, bio, headline, and session rate.
             </p>
-            <Link href="/questions">
-              <Button variant="outline" className="w-full">Browse Questions</Button>
+            <Link href="/experts/me">
+              <Button variant="outline" className="w-full">Edit Profile</Button>
             </Link>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Live Sessions</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">My Sessions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Scheduling and live session management are coming in Phase 2.
+              View upcoming and past live interview sessions with candidates.
             </p>
-            <Button variant="outline" className="w-full" disabled>
-              Coming Soon
-            </Button>
+            <Link href="/account/bookings">
+              <Button variant="outline" className="w-full">View Sessions</Button>
+            </Link>
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Question Bank</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Browse the full question library to prepare questions for your sessions.
+            </p>
+            <Link href="/questions">
+              <Button variant="outline" className="w-full">Browse Questions</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Candidate Reviews</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              View and submit structured feedback for candidates you've interviewed.
+              Submit structured rubric evaluations for candidates after sessions.
             </p>
-            <Button variant="outline" className="w-full" disabled>
-              Coming Soon
-            </Button>
+            <Link href="/account/bookings">
+              <Button variant="outline" className="w-full">Submit Rubric</Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Not an expert yet?</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Complete your expert profile to go live in the marketplace and start accepting bookings.
+            </p>
+            <Link href="/experts/apply">
+              <Button variant="outline" className="w-full">Complete Application</Button>
+            </Link>
           </CardContent>
         </Card>
       </div>
+    </div>
+  )
+}
 
-      {/* Phase 2 roadmap notice */}
-      <div className="rounded-lg border border-dashed p-6 text-center">
-        <p className="text-2xl mb-2" aria-hidden="true">🚀</p>
-        <p className="font-medium">Expert features are expanding in Phase 2</p>
+// ─── Admin dashboard ──────────────────────────────────────────────
+
+function AdminDashboard() {
+  return (
+    <div className="container mx-auto max-w-5xl px-4 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Live session scheduling, candidate progress tracking, earnings dashboard, and feedback
-          templates will be available in the next release.
+          Platform management — users, content, and expert approvals.
         </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Expert Approvals</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Review and approve pending expert applications.
+            </p>
+            <Link href="/admin/experts">
+              <Button variant="outline" className="w-full">Review Applications</Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Question Bank</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Browse, manage, and add questions to the question library.
+            </p>
+            <Link href="/questions">
+              <Button variant="outline" className="w-full">Manage Questions</Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Industry Playbooks</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Create and publish structured preparation guides.
+            </p>
+            <Link href="/playbooks">
+              <Button variant="outline" className="w-full">Manage Playbooks</Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
@@ -225,5 +306,7 @@ function ExpertDashboard() {
 
 export default function DashboardPage() {
   const { user } = useAuthStore()
-  return user?.role === 'expert' ? <ExpertDashboard /> : <CandidateDashboard />
+  if (user?.role === 'admin') return <AdminDashboard />
+  if (user?.role === 'expert') return <ExpertDashboard />
+  return <CandidateDashboard />
 }

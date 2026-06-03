@@ -33,3 +33,4 @@ export function requireRole(role: string) {
 
 export const requireAdmin = requireRole('admin')
 export const requireCandidate = requireRole('candidate')
+export const requireExpert = requireRole('expert')

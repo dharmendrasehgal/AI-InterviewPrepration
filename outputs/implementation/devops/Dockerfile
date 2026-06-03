@@ -12,6 +12,8 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 COPY package.json tsconfig.json ./
 RUN npm install --ignore-scripts
+COPY lib/     ./lib/
+COPY db/      ./db/
 COPY modules/ ./modules/
 COPY server.ts worker.ts ./
 RUN npm run build
